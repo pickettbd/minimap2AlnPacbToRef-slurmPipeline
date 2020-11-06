@@ -71,6 +71,12 @@ OUTPUT_DIRS=($(readlink -n -m `dirname "${PAF_OUTPUT_FILE}"`))
 shift 2
 QUERY_FASTA_FILES=("${@}")
 
+DASH_A=""
+if [ ${#PAF_OUTPUT_FILE} -ge 4 ] && [ "${PAF_OUTPUT_FILE: -4}" == '.sam' ]
+then
+	DASH_A="-a"
+fi
+
 # 	check for existence of input file(s)
 #		We assume minimap2 is capable of recognizing whether the index it
 #		requires exists. We assume the same for the input fq file.
@@ -88,6 +94,7 @@ mkdir -p "${OUTPUT_DIRS[@]}" &> /dev/null
 
 #	run the program of interest
 time minimap2 \
+	${DASH_A} \
 	-t ${SLURM_NTASKS:-1} \
 	-o "${PAF_OUTPUT_FILE}" \
 	"${REF_IDX}" \

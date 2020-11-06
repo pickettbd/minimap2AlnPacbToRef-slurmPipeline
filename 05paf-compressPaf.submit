@@ -21,31 +21,26 @@ CWD_check
 
 submitJob()
 {
-	local PROJECT SPECIES READS_BASE ASM_BASE INDEX PAF READS_FASTA JOB_NAME
-	PROJECT="${1}"
-	SPECIES="${2}"
-	READS_BASE="${3}"
-	ASM_BASE="${4}"
-	INDEX="${5}"
-	PAF="${6}"
-	shift 6
-	READS_FASTA=("${@}")
+	local JOB_NAME PAF_ALN
 
-	JOB_NAME="${PROJECT}_${SPECIES}_${READS_BASE}2${ASM_BASE}-minimapAlnPacb"
+	JOB_NAME="${1}"
+	PAF_ALN="${2}"
 
 	sbatch \
 		-J ${JOB_NAME} \
-		--time=1-00:00:00 \
-		--ntasks=24 \
+		--signal=B:USR1@60 \
+		--time=0-01:00:00 \
 		--nodes=1 \
+		--ntasks=1 \
 		--cpus-per-task=1 \
-		--mem=64G \
+		--mem=8G \
 		-o job_files/%x__%j.out \
 		-e job_files/%x__%j.err \
-		${SCRIPTS_DIR}/03-minimapAln.slurm \
-		"${INDEX}" \
-		"${PAF}" \
-		"${READS_FASTA[@]}"
+		"${SCRIPTS_DIR}"/compressPaf.slurm \
+		"${PAF_ALN}"
+		#--array=${ARRAY_JOBS}%${JOBS_AT_ONCE} \
+		#-o job_files/%x__%A-%a.out \
+		#-e job_files/%x__%A-%a.err \
 }
 
 # ###################################### #
@@ -53,6 +48,10 @@ submitJob()
 # ###################################### #
 
 source "data/vars-longAln.list"
+# define key variables
+SPECIES="gt"
+DATA_DIR="data"
+PD_DIR="${DATA_DIR}/purge_dups"
 
 while read ASM
 do
@@ -73,8 +72,8 @@ do
 		READS_BASE=`printf '%s' "${READS_BASE}" | sed -r 's,[_.-]*[0-9]+$,,'`
 
 		# define key variables
-		PAF="data/alignments/pacb_${READS_BASE}-x-${ASM_BASE}.${PAForSAM}"
-		declare -a INPUT_FILES=("${ASM_PATH}" "${ASSEMBLY_IDX}" "${READS_FA[@]}")
+		PAF="data/alignments/pacb_${READS_BASE}-x-${ASM_BASE}.paf"
+		declare -a INPUT_FILES=("${SAM}")
 
 		EXIT_EARLY=0
 
@@ -88,23 +87,27 @@ do
 			fi
 		done
 
-		# exit without submitting the job, if needed
-		if [ $EXIT_EARLY -ne 0 ]
+		# check if the expected output already exists
+		if [ -e "${PAF}.gz" ]
 		then
-			exit ${EXIT_EARLY}
+			printf "%s\n" \
+				"INFO: Skipping ${PAF%%.paf}; the paf file appears to already be compressed." \
+				"To run this one, first delete ${PAF}.gz." \
+				1>&2
+			continue
 		fi
 
-		if [ -e "${PAF}" ]
-		then
-			printf "%s\n\t%s\n" "INFO: ${PAF} already exists. We will skip it. To proceed, first execute:" "rm -f ${PAF}" 1>&2
-		else
+		# ####################### #
+		# actually submit the job #
+		# ####################### #
 
-			# ####################### #
-			# actually submit the job #
-			# ####################### #
-			submitJob  "${PROJECT}" "${SPECIES}" "${READS_BASE}" "${ASM_BASE}" "${ASSEMBLY_IDX}" "${PAF}" "${READS_FA[@]}"
-		fi
+		HPC_JOB_NAME="${PROJECT}_${SPECIES}_${READS_BASE}2${ASM_BASE}-compressPaf"
+		submitJob \
+			"${HPC_JOB_NAME}" \
+			"${PAF}"
+		unset HPC_JOB_NAME PAF
 
 	done < data/pacbs.list
 done < data/asms.list
 
+# 36889878. 0-00:24:33. 98% (1) CPU. 42% (8G) RAM. (This was for a paf file that was ~24G)

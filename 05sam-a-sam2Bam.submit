@@ -19,33 +19,57 @@ CWD_check()
 }
 CWD_check
 
+getNeededMem()
+{
+	local BAM SIZE SAM_EXPANSION_FACTOR BAM_EXPANSION_FACTOR MEM_NEEDED
+	BAM="${1}"
+
+	SIZE=$(stat --printf "%s" "${BAM}")
+
+	SAM_EXPANSION_FACTOR=1.5
+	BAM_EXPANSION_FACTOR=3.5
+
+	if [ "${BAM##*.}" == "sam" ]
+	then
+		SIZE=$(bc <<< "${SIZE}*${SAM_EXPANSION_FACTOR}")
+
+	elif [ "${BAM##*.}" == "bam" ]
+	then
+		SIZE=$(bc <<< "${SIZE}*${BAM_EXPANSION_FACTOR}")
+	else
+		printf "%s\n" "ERROR: ${BAM} appears to be neither SAM nor BAM." 1>&2
+		exit 1
+	fi
+
+	MEM_NEEDED=$(bc <<< "${SIZE}/2^30+1")
+
+	printf "%uG" ${MEM_NEEDED}
+}
+
 submitJob()
 {
-	local PROJECT SPECIES READS_BASE ASM_BASE INDEX PAF READS_FASTA JOB_NAME
+	local PROJECT SPECIES READS_BASE ASM_BASE SAM_FILE BAM_FILE JOB_NAME
 	PROJECT="${1}"
 	SPECIES="${2}"
 	READS_BASE="${3}"
 	ASM_BASE="${4}"
-	INDEX="${5}"
-	PAF="${6}"
-	shift 6
-	READS_FASTA=("${@}")
+	SAM_FILE="${5}"
+	BAM_FILE="${6}"
 
-	JOB_NAME="${PROJECT}_${SPECIES}_${READS_BASE}2${ASM_BASE}-minimapAlnPacb"
+	JOB_NAME="${PROJECT}_${SPECIES}_${READS_BASE}2${ASM_BASE}-sam2bamsort"
 
 	sbatch \
 		-J ${JOB_NAME} \
-		--time=1-00:00:00 \
-		--ntasks=24 \
+		--signal=B:USR1@120 \
+		--time=0-01:00:00 \
+		--ntasks=6 \
 		--nodes=1 \
-		--cpus-per-task=1 \
-		--mem=64G \
+		--mem="${MEM}" \
 		-o job_files/%x__%j.out \
 		-e job_files/%x__%j.err \
-		${SCRIPTS_DIR}/03-minimapAln.slurm \
-		"${INDEX}" \
-		"${PAF}" \
-		"${READS_FASTA[@]}"
+		${SCRIPTS_DIR}/sam2Bam.slurm \
+		"${SAM_FILE}" \
+		"${BAM_FILE}"
 }
 
 # ###################################### #
@@ -73,8 +97,9 @@ do
 		READS_BASE=`printf '%s' "${READS_BASE}" | sed -r 's,[_.-]*[0-9]+$,,'`
 
 		# define key variables
-		PAF="data/alignments/pacb_${READS_BASE}-x-${ASM_BASE}.${PAForSAM}"
-		declare -a INPUT_FILES=("${ASM_PATH}" "${ASSEMBLY_IDX}" "${READS_FA[@]}")
+		SAM="data/alignments/pacb_${READS_BASE}-x-${ASM_BASE}.sam"
+		BAM="${SAM%.sam}_sorted.bam"
+		declare -a INPUT_FILES=("${SAM}")
 
 		EXIT_EARLY=0
 
@@ -94,15 +119,15 @@ do
 			exit ${EXIT_EARLY}
 		fi
 
-		if [ -e "${PAF}" ]
+		if [ -e "${BAM}" ]
 		then
-			printf "%s\n\t%s\n" "INFO: ${PAF} already exists. We will skip it. To proceed, first execute:" "rm -f ${PAF}" 1>&2
+			printf "%s\n\t%s\n" "INFO: ${BAM} already exists. We will skip it. To proceed, first execute:" "rm -f ${BAM}" 1>&2
 		else
 
 			# ####################### #
 			# actually submit the job #
 			# ####################### #
-			submitJob  "${PROJECT}" "${SPECIES}" "${READS_BASE}" "${ASM_BASE}" "${ASSEMBLY_IDX}" "${PAF}" "${READS_FA[@]}"
+			submitJob "${PROJECT}" "${SPECIES}" "${READS_BASE}" "${ASM_BASE}" "${SAM}" "${BAM}"
 		fi
 
 	done < data/pacbs.list
