@@ -1,0 +1,102 @@
+#! /bin/bash
+
+# Ensure we're running from the correct location
+CWD_check()
+{
+	#local SCRIPTS_DIR
+	local MAIN_DIR
+	local RUN_DIR
+
+	SCRIPTS_DIR=$(readlink -f `dirname "${BASH_SOURCE[0]}"`)
+	MAIN_DIR=$(readlink -f `dirname "${SCRIPTS_DIR}/"`)
+	RUN_DIR=$(readlink -f .)
+
+	if [ "${RUN_DIR}" != "${MAIN_DIR}" ] || ! [[ "${SCRIPTS_DIR}" =~ ^"${MAIN_DIR}"/scripts.* ]]
+	then
+		printf "\n\t%s\n\t%s\n\n" "Script must be run from ${MAIN_DIR}" "You are currently at:   ${RUN_DIR}" 1>&2
+		exit 1
+	fi
+}
+CWD_check
+
+submitJob()
+{
+	local SPECIES PROJECT ASSEMBLY_FASTA ASSEMBLY_INDEX JOB_NAME MEM
+	SPECIES="${1}"
+	PROJECT="${2}"
+	ASSEMBLY_FASTA="${3}"
+	ASSEMBLY_INDEX="${4}"
+
+	JOB_NAME="${PROJECT}_${SPECIES}-minimapIdxPacb"
+
+	MEM="4G"
+	if [ "${SPECIES}" == "pacbf" ]
+	then
+		MEM="8G"
+	fi
+
+	sbatch \
+		-J ${JOB_NAME} \
+		--time=0-00:30:00 \
+		--ntasks=1 \
+		--nodes=1 \
+		--cpus-per-task=1 \
+		--mem=${MEM} \
+		-o job_files/%x__%j.out \
+		-e job_files/%x__%j.err \
+		${SCRIPTS_DIR}/02-minimapIdx.slurm \
+		"${ASSEMBLY_INDEX}" \
+		"${ASSEMBLY_FASTA}"
+}
+
+# ###################################### #
+# sanity check on input and output files #
+# ###################################### #
+
+source "data/vars-longAln.list"
+
+while read ASM
+do
+	ASM_PATH="data/assembly/${ASM}"
+	ASM_BASE="`basename ${ASM%%.fa*}`"
+
+	# define key variables
+	ASSEMBLY_IDX="${ASM_PATH%%.fa*}.mmi"
+	declare -A INPUT_FILES=([ASSEMBLY_FA]="${ASM_PATH}")
+	declare -a OUTPUT_FILES=("${ASSEMBLY_IDX}")
+
+	EXIT_EARLY=0
+
+	# check for existence of needed input files
+	for INPUT_FILE in "${INPUT_FILES[@]}"
+	do
+		if [ ! -e "${INPUT_FILE}" ]
+		then
+			printf "%s\n" "ERROR: Required input file does not exist: ${INPUT_FILE}" 1>&2
+			EXIT_EARLY=1
+		fi
+	done
+
+	# check for existence of expected output files
+	for OUTPUT_FILE in "${OUTPUT_FILES[@]}"
+	do
+		if [ -e "${OUTPUT_FILE}" ]
+		then
+			printf "%s\n\t%s\n" "ERROR: Expected output file already exists: ${OUTPUT_FILE}. If you wish to proceed anyway, please remove it:" "rm -f ${OUTPUT_FILE}" 1>&2
+			EXIT_EARLY=1
+		fi
+	done
+
+	# exit without submitting the job, if needed
+	if [ $EXIT_EARLY -ne 0 ]
+	then
+		exit ${EXIT_EARLY}
+	fi
+
+	# ####################### #
+	# actually submit the job #
+	# ####################### #
+	submitJob "${SPECIES}" "${PROJECT}" "${INPUT_FILES[ASSEMBLY_FA]}" "${OUTPUT_FILES[@]}"
+	
+done < data/asms.list
+

@@ -1,0 +1,110 @@
+#! /bin/bash
+
+# Ensure we're running from the correct location
+CWD_check()
+{
+	#local SCRIPTS_DIR
+	local MAIN_DIR
+	local RUN_DIR
+
+	SCRIPTS_DIR=$(readlink -f `dirname "${BASH_SOURCE[0]}"`)
+	MAIN_DIR=$(readlink -f `dirname "${SCRIPTS_DIR}/"`)
+	RUN_DIR=$(readlink -f .)
+
+	if [ "${RUN_DIR}" != "${MAIN_DIR}" ] || ! [[ "${SCRIPTS_DIR}" =~ ^"${MAIN_DIR}"/scripts.* ]]
+	then
+		printf "\n\t%s\n\t%s\n\n" "Script must be run from ${MAIN_DIR}" "You are currently at:   ${RUN_DIR}" 1>&2
+		exit 1
+	fi
+}
+CWD_check
+
+submitJob()
+{
+	local PROJECT SPECIES READS_BASE ASM_BASE INDEX PAF READS_FASTA JOB_NAME
+	PROJECT="${1}"
+	SPECIES="${2}"
+	READS_BASE="${3}"
+	ASM_BASE="${4}"
+	INDEX="${5}"
+	PAF="${6}"
+	shift 6
+	READS_FASTA=("${@}")
+
+	JOB_NAME="${PROJECT}_${SPECIES}_${READS_BASE}2${ASM_BASE}-minimapAlnPacb"
+
+	sbatch \
+		-J ${JOB_NAME} \
+		--time=1-00:00:00 \
+		--ntasks=24 \
+		--nodes=1 \
+		--cpus-per-task=1 \
+		--mem=64G \
+		-o job_files/%x__%j.out \
+		-e job_files/%x__%j.err \
+		${SCRIPTS_DIR}/03-minimapAln.slurm \
+		"${INDEX}" \
+		"${PAF}" \
+		"${READS_FASTA[@]}"
+}
+
+# ###################################### #
+# sanity check on input and output files #
+# ###################################### #
+
+source "data/vars-longAln.list"
+
+while read ASM
+do
+	ASM_PATH="data/assembly/${ASM}"
+	ASM_BASE="`basename ${ASM%%.fa*}`"
+	ASSEMBLY_IDX="${ASM_PATH%%.fa*}.mmi"
+	
+	while IFS=$'\t' read -r -a READS_FA
+	do
+		i=0
+		while [ ${i} -lt ${#READS_FA[@]} ]
+		do
+			READS_FA[${i}]=data/pacbio/${READS_FA[${i}]}
+			i=$((${i}+1))
+		done
+
+		READS_BASE="`basename ${READS_FA[0]%%.fa*}`"
+		READS_BASE=`printf '%s' "${READS_BASE}" | sed -r 's,[_.-]*[0-9]+$,,'`
+
+		# define key variables
+		PAF="data/alignments/pacb_${READS_BASE}-x-${ASM_BASE}.paf"
+		declare -a INPUT_FILES=("${ASM_PATH}" "${ASSEMBLY_IDX}" "${READS_FA[@]}")
+
+		EXIT_EARLY=0
+
+		# check for existence of needed input files
+		for INPUT_FILE in "${INPUT_FILES[@]}"
+		do
+			if [ ! -e "${INPUT_FILE}" ]
+			then
+				printf "%s\n" "ERROR: Required input file does not exist: ${INPUT_FILE}" 1>&2
+				EXIT_EARLY=1
+			fi
+		done
+
+		# exit without submitting the job, if needed
+		if [ $EXIT_EARLY -ne 0 ]
+		then
+			exit ${EXIT_EARLY}
+		fi
+
+		if [ -e "${PAF}" ]
+		then
+			printf "%s\n\t%s\n" "INFO: ${PAF} already exists. We will skip it. To proceed, first execute:" "rm -f ${PAF}" 1>&2
+		else
+
+			# ####################### #
+			# actually submit the job #
+			# ####################### #
+			submitJob  "${PROJECT}" "${SPECIES}" "${READS_BASE}" "${ASM_BASE}" "${ASSEMBLY_IDX}" "${PAF}" "${READS_FA[@]}"
+		fi
+
+	done < data/pacbs.list
+done < data/asms.list
+
