@@ -38,7 +38,7 @@ submitJob()
 		--mem=100M \
 		-o job_files/%x__%j.out \
 		-e job_files/%x__%j.err \
-		scripts/10-indexBam.slurm \
+		${SCRIPTS_DIR}/05sam-b-indexBam.slurm \
 		"${BAM_FILE}"
 	
 	local SBATCH_EXIT_STATUS
@@ -74,7 +74,7 @@ do
 		READS_BASE=`printf '%s' "${READS_BASE}" | sed -r 's,[_.-]*[0-9]+$,,'`
 
 		# define key variables
-		BAM="data/alignments/pacb_${READS_BASE}-x-${ASM_BASE}.bam"
+		BAM="data/alignments/pacb_${READS_BASE}-x-${ASM_BASE}_sorted.bam"
 		BAI="${BAM}.bai"
 		declare -a INPUT_FILES=("${BAM}")
 
