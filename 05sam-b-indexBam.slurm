@@ -85,6 +85,13 @@ time samtools index \
 #	cleanup and exit
 EXIT_CODE=$?
 
+if [ ${EXIT_CODE} -eq 0 ]
+then
+	chmod 444 "${BAM_FILE}.bai" &> /dev/null
+else
+	rm -f "${BAM_FILE}.bai" &> /dev/null
+fi
+
 cleanup
 exit ${EXIT_CODE}
 

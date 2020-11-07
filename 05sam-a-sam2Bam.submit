@@ -69,7 +69,7 @@ submitJob()
 		--mem="${MEM}" \
 		-o job_files/%x__%j.out \
 		-e job_files/%x__%j.err \
-		${SCRIPTS_DIR}/05sam-a-sam2Bam.slurm \
+		${SCRIPTS_DIR}/sam2Bam.slurm \
 		"${SAM_FILE}" \
 		"${BAM_FILE}"
 }

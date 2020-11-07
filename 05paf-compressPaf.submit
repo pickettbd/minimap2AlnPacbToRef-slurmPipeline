@@ -36,7 +36,7 @@ submitJob()
 		--mem=8G \
 		-o job_files/%x__%j.out \
 		-e job_files/%x__%j.err \
-		"${SCRIPTS_DIR}"/05paf-compressPaf.slurm \
+		"${SCRIPTS_DIR}"/compressPaf.slurm \
 		"${PAF_ALN}"
 		#--array=${ARRAY_JOBS}%${JOBS_AT_ONCE} \
 		#-o job_files/%x__%A-%a.out \
