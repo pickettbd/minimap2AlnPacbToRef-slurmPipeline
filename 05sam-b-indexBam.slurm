@@ -64,7 +64,7 @@ trap control_c SIGHUP SIGINT SIGTERM SIGQUIT
 
 # 	load modules
 module purge
-module load samtools/1.10
+module load samtools/1.11
 
 #	setup variables for the job
 BAM_FILE="${1}"

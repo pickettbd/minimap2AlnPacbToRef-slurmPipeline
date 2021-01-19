@@ -97,7 +97,7 @@ trap outOfTime USR1
 
 # 	load modules
 module purge
-module load samtools/1.10
+module load samtools/1.11
 
 #	check that enough input was given
 if [ $# -ne 2 ]
