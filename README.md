@@ -31,3 +31,7 @@ This pipeline does not support file names or paths that have whitespace in them.
 Please run steps 00 and 01 to see instructions on how to set things up regarding where the assembly and reads are supposed to be located.
 There will also be a description of how to specify certain options to the pipeline using `data/vars-longAln.list`.
 The output alignments will be in the `data/alignments` directory.
+
+## Licensing and Citation
+Please see the `LICENSE` file for licensing information.
+Please cite the author and this GitHub Repo if you rely on this repo for a project that ends up being published in any kind of peer-reviewed publication or presentation. Please include a link. 
