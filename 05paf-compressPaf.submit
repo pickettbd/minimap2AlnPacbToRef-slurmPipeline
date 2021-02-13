@@ -110,4 +110,3 @@ do
 	done < data/pacbs.list
 done < data/asms.list
 
-# 36889878. 0-00:24:33. 98% (1) CPU. 42% (8G) RAM. (This was for a paf file that was ~24G)
