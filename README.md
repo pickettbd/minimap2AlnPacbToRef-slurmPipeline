@@ -11,7 +11,7 @@ cd some_project_dir
 mkdir -p data job_files/{success,failed}
 git clone https://github.com/pickettbd/minimap2AlnPacbToRef-slurmPipeline scripts-alnPacb2Ref
 ```
-The scripts *must* from the main project directory (some_project_dir) (*not* from the scripts-alnPacb2Ref dir).
+The scripts *must* be run from the main project directory (some_project_dir) (*not* from the scripts-alnPacb2Ref dir).
 
 ## Data Requirements
 This project is written to work with a "reference" genome (a non-official *de novo* assembly version is okay).
